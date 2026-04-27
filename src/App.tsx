@@ -5,6 +5,8 @@ import { PracticeGrid, type MoveDirection } from "./components/PracticeGrid";
 import { SummaryBar } from "./components/SummaryBar";
 import { SheetTabs } from "./components/SheetTabs";
 import { ConverterModal } from "./components/ConverterModal";
+import { AuthModal } from "./components/AuthModal";
+import { useAuth } from "./hooks/useAuth";
 import { COLUMNS, SAMPLE_DATA } from "./data/sampleData";
 import type { CellPosition, GridState, PracticeRecord } from "./types";
 import {
@@ -43,6 +45,9 @@ export default function App() {
 
   const [stats, setStats] = useState(() => loadStats());
   const [isConverterOpen, setConverterOpen] = useState(false);
+  const [isAuthOpen, setAuthOpen] = useState(false);
+
+  const auth = useAuth();
 
   const completionSavedRef = useRef(false);
 
@@ -254,7 +259,14 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <WorkbookHeader mode={headerMode} saved />
+      <WorkbookHeader
+        mode={headerMode}
+        saved
+        authConfigured={auth.configured}
+        authLoading={auth.loading}
+        user={auth.user}
+        onAccountClick={() => setAuthOpen(true)}
+      />
       <StatusBar
         cellAddress={cellAddress}
         elapsedLabel={formatElapsed(elapsedMs)}
@@ -359,6 +371,15 @@ export default function App() {
       </div>
 
       <ConverterModal open={isConverterOpen} onClose={() => setConverterOpen(false)} />
+      <AuthModal
+        open={isAuthOpen}
+        onClose={() => setAuthOpen(false)}
+        configured={auth.configured}
+        user={auth.user}
+        onSignIn={auth.signIn}
+        onSignUp={auth.signUp}
+        onSignOut={auth.signOut}
+      />
     </div>
   );
 }

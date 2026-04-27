@@ -1,11 +1,28 @@
+import type { User } from "@supabase/supabase-js";
 import styles from "./WorkbookHeader.module.css";
 
 type Props = {
   mode?: string;
   saved?: boolean;
+  authConfigured: boolean;
+  authLoading: boolean;
+  user: User | null;
+  onAccountClick: () => void;
 };
 
-export function WorkbookHeader({ mode = "기본 입력", saved = true }: Props) {
+export function WorkbookHeader({
+  mode = "기본 입력",
+  saved = true,
+  authConfigured,
+  authLoading,
+  user,
+  onAccountClick,
+}: Props) {
+  const displayName =
+    (user?.user_metadata?.display_name as string | undefined) ??
+    user?.email?.split("@")[0] ??
+    "";
+
   return (
     <header className={styles.header}>
       <div className={styles.left}>
@@ -23,7 +40,57 @@ export function WorkbookHeader({ mode = "기본 입력", saved = true }: Props) 
         <span className={`${styles.save} ${saved ? styles.saveActive : ""}`}>
           {saved ? "로컬 저장됨" : "저장 대기"}
         </span>
+        <AccountButton
+          configured={authConfigured}
+          loading={authLoading}
+          displayName={displayName}
+          email={user?.email ?? null}
+          onClick={onAccountClick}
+        />
       </div>
     </header>
+  );
+}
+
+type AccountButtonProps = {
+  configured: boolean;
+  loading: boolean;
+  displayName: string;
+  email: string | null;
+  onClick: () => void;
+};
+
+function AccountButton({ configured, loading, displayName, email, onClick }: AccountButtonProps) {
+  if (loading) {
+    return (
+      <button type="button" className={styles.account} disabled>
+        <span className={styles.accountDot} aria-hidden="true" />
+        <span className={styles.accountText}>확인 중…</span>
+      </button>
+    );
+  }
+
+  const isLoggedIn = Boolean(email);
+  const label = isLoggedIn ? displayName || email || "내 계정" : "로그인";
+  const title = !configured
+    ? "Supabase 미설정 — 클릭해 안내 보기"
+    : isLoggedIn
+      ? `${email} (계정)`
+      : "로그인 / 회원가입";
+
+  return (
+    <button
+      type="button"
+      className={`${styles.account} ${isLoggedIn ? styles.accountActive : ""}`}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+    >
+      <span
+        className={`${styles.accountDot} ${isLoggedIn ? styles.accountDotOn : ""}`}
+        aria-hidden="true"
+      />
+      <span className={styles.accountText}>{label}</span>
+    </button>
   );
 }

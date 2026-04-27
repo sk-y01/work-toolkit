@@ -191,3 +191,67 @@
     gap: 8px;
   }
 }
+
+/* ---------- Floating action button (mobile) ----------
+   모바일에서 단축키(Ctrl+/) 를 사용할 수 없는 환경을 위한 접근성 보조 버튼.
+   업무툴 톤에 맞춰 작고 둥근 형태로, 과한 디자인 없이 우측 하단에 고정한다. */
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--panel, #ffffff);
+  color: var(--text, #111827);
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.fab:hover {
+  background: var(--header-bg, #f3f4f6);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.fab:active {
+  transform: translateY(1px);
+}
+
+.fab:focus-visible {
+  outline: 2px solid var(--accent-soft, #93c5fd);
+  outline-offset: 2px;
+}
+
+.fabIcon {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent, #2563eb);
+}
+
+.fabLabel {
+  white-space: nowrap;
+}
+
+/* 데스크톱에서는 단축키가 있으므로 FAB 를 숨겨 화면을 깔끔하게 유지.
+   모바일/좁은 화면에서만 노출. */
+@media (min-width: 901px) {
+  .fab {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .fab {
+    right: 12px;
+    bottom: 12px;
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+}

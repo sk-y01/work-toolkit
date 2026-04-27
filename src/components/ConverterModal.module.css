@@ -123,6 +123,31 @@
   font-style: italic;
 }
 
+/* 변환 중 로딩 표시 */
+.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent, #2563eb);
+  border-radius: 50%;
+  animation: converter-spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes converter-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .meta {
   display: block;
   margin-top: 8px;

@@ -370,6 +370,17 @@ export default function App() {
         </span>
       </div>
 
+      <button
+        type="button"
+        className={styles.fab}
+        onClick={() => setConverterOpen(true)}
+        aria-label="문장 변환 열기"
+        title="문장 변환 (Ctrl+/)"
+      >
+        <span className={styles.fabIcon} aria-hidden="true">✎</span>
+        <span className={styles.fabLabel}>문장 변환</span>
+      </button>
+
       <ConverterModal open={isConverterOpen} onClose={() => setConverterOpen(false)} />
       <AuthModal
         open={isAuthOpen}

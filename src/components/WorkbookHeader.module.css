@@ -32,6 +32,12 @@
   min-width: 0;
 }
 
+.titleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .title {
   margin: 0;
   font-size: 15px;
@@ -39,6 +45,32 @@
   letter-spacing: -0.2px;
   white-space: nowrap;
   line-height: 1.2;
+  color: var(--text);
+}
+
+.helpBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.helpBtn:hover {
+  background: var(--header-bg);
+  color: var(--accent);
+}
+
+.helpBtn:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
 }
 
 .subtitle {
@@ -58,24 +90,30 @@
   justify-content: flex-end;
 }
 
-.mode {
+.themeBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  background: var(--header-bg);
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.modeLabel {
   color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
-.modeValue {
-  font-weight: 500;
+.themeBtn:hover {
+  background: var(--header-bg);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.themeBtn:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
 }
 
 .save {
@@ -148,5 +186,8 @@
   }
   .account {
     max-width: 130px;
+  }
+  .right {
+    gap: 10px;
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { convertToReport } from "../utils/converter";
+import { canUseAI, incrementAIUsage } from "../utils/aiUsage";
 import styles from "./ConverterModal.module.css";
 
 const MIN_INPUT_LENGTH = 2;
@@ -91,7 +92,11 @@ export function ConverterModal({ open, onClose }: Props) {
     return { text: r.text, index: r.index, total: r.total };
   };
 
-  // 메인 변환 — OpenAI API 우선, 실패 시 템플릿 기반 fallback.
+  // 메인 변환 — OpenAI API 우선, 실패하거나 일일 한도 초과 시 템플릿 기반 fallback.
+  //
+  // 일일 한도(아래 canUseAI) 는 보안용이 아니라 MVP UX 가드다.
+  // - 한도 내: 서버에 요청해 보고용 표현으로 변환, 성공하면 카운트 증가
+  // - 한도 초과: 네트워크 호출 자체를 건너뛰고 안내문구 + fallback 결과만 표시
   const handleConvert = async () => {
     if (trimmed.length < MIN_INPUT_LENGTH) return;
 
@@ -103,10 +108,23 @@ export function ConverterModal({ open, onClose }: Props) {
     setErrorNotice(null);
     setCopied(false);
 
+    if (!canUseAI()) {
+      // 한도 초과 — API 호출 없이 즉시 템플릿 결과 표시.
+      const fb = runFallback(-1);
+      setResult(fb.text);
+      setMeta({ index: fb.index, total: fb.total, source: "fallback" });
+      setErrorNotice("오늘의 AI 변환 횟수를 모두 사용하여 기본 변환 결과를 표시합니다.");
+      setIsLoading(false);
+      abortRef.current = null;
+      return;
+    }
+
     try {
       const text = await requestOpenAIConvert(trimmed, ac.signal);
       setResult(text);
       setMeta({ index: 0, total: 1, source: "openai" });
+      // 성공한 호출만 카운트 — 실패는 사용자가 다시 시도할 수 있어야 한다.
+      incrementAIUsage();
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return;
       const fb = runFallback(-1);
@@ -247,6 +265,7 @@ export function ConverterModal({ open, onClose }: Props) {
             {copied ? "복사됨" : "복사"}
           </button>
         </div>
+        {/* 단축키 안내는 PC에서만 의미가 있어 모바일에서는 숨긴다 (CSS 미디어 쿼리). */}
         <div className={styles.shortcutHint}>
           <span className={styles.shortcutLabel}>단축키</span>
           <span className={styles.shortcutItem}>

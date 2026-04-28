@@ -1,22 +1,27 @@
 import type { User } from "@supabase/supabase-js";
+import { HelpCircle, Moon, Sun } from "lucide-react";
 import styles from "./WorkbookHeader.module.css";
 
 type Props = {
-  mode?: string;
   saved?: boolean;
   authConfigured: boolean;
   authLoading: boolean;
   user: User | null;
   onAccountClick: () => void;
+  onHelpClick: () => void;
+  isDark: boolean;
+  onToggleTheme: () => void;
 };
 
 export function WorkbookHeader({
-  mode = "기본 입력",
   saved = true,
   authConfigured,
   authLoading,
   user,
   onAccountClick,
+  onHelpClick,
+  isDark,
+  onToggleTheme,
 }: Props) {
   const displayName =
     (user?.user_metadata?.display_name as string | undefined) ??
@@ -28,15 +33,35 @@ export function WorkbookHeader({
       <div className={styles.left}>
         <img src="/logo.svg" alt="" className={styles.logo} width={28} height={28} />
         <div className={styles.leftText}>
-          <h1 className={styles.title}>Work Toolkit</h1>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>Work Toolkit</h1>
+            <button
+              type="button"
+              className={styles.helpBtn}
+              onClick={onHelpClick}
+              aria-label="도움말"
+              title="도움말"
+            >
+              <HelpCircle size={16} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </div>
           <span className={styles.subtitle}>업무 입력 훈련 워크북</span>
         </div>
       </div>
       <div className={styles.right}>
-        <div className={styles.mode}>
-          <span className={styles.modeLabel}>모드</span>
-          <span className={styles.modeValue}>{mode}</span>
-        </div>
+        <button
+          type="button"
+          className={styles.themeBtn}
+          onClick={onToggleTheme}
+          aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          title={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+        >
+          {isDark ? (
+            <Sun size={16} strokeWidth={1.8} aria-hidden="true" />
+          ) : (
+            <Moon size={16} strokeWidth={1.8} aria-hidden="true" />
+          )}
+        </button>
         <span className={`${styles.save} ${saved ? styles.saveActive : ""}`}>
           {saved ? "로컬 저장됨" : "저장 대기"}
         </span>

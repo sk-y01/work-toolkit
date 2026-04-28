@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkbookHeader } from "./components/WorkbookHeader";
 import { StatusBar } from "./components/StatusBar";
 import { PracticeGrid, type MoveDirection } from "./components/PracticeGrid";
@@ -6,8 +6,11 @@ import { SummaryBar } from "./components/SummaryBar";
 import { SheetTabs } from "./components/SheetTabs";
 import { ConverterModal } from "./components/ConverterModal";
 import { AuthModal } from "./components/AuthModal";
+import { HelpModal } from "./components/HelpModal";
 import { useAuth } from "./hooks/useAuth";
-import { COLUMNS, SAMPLE_DATA } from "./data/sampleData";
+import { useDarkMode } from "./hooks/useDarkMode";
+import { useIsMobile } from "./hooks/useIsMobile";
+import { SHEETS } from "./data/sampleData";
 import type { CellPosition, GridState, PracticeRecord } from "./types";
 import {
   calcAccuracy,
@@ -25,32 +28,106 @@ import { formatElapsed, formatRowSeconds } from "./utils/time";
 import { appendRecord, loadStats } from "./utils/storage";
 import styles from "./App.module.css";
 
-const ROWS = SAMPLE_DATA.length;
-const COLS = COLUMNS.length;
+const HELP_SEEN_KEY = "work_toolkit.help_seen.v1";
+
+// 시트별로 독립적인 입력/통계 흐름을 유지하기 위한 상태 묶음.
+// 사용자가 탭을 전환하면 현재 시트의 진행도가 그대로 보존되어 다른 시트로 옮겨가도 잃지 않는다.
+type SheetState = {
+  grid: GridState;
+  active: CellPosition;
+  startedAt: number | null;
+  finishedAt: number | null;
+  lastRowDurationMs: number | null;
+  rowStartedAt: number | null;
+  fixMode: boolean;
+  completionSaved: boolean;
+};
+
+function makeInitialSheetState(rows: number, cols: number): SheetState {
+  return {
+    grid: createEmptyGrid(rows, cols),
+    active: { row: 0, col: 0 },
+    startedAt: null,
+    finishedAt: null,
+    lastRowDurationMs: null,
+    rowStartedAt: null,
+    fixMode: false,
+    completionSaved: false,
+  };
+}
 
 export default function App() {
-  const expected = SAMPLE_DATA;
+  const [activeSheetId, setActiveSheetId] = useState<string>(SHEETS[0].id);
+  const [sheetStates, setSheetStates] = useState<Record<string, SheetState>>(() => {
+    const map: Record<string, SheetState> = {};
+    for (const s of SHEETS) {
+      map[s.id] = makeInitialSheetState(s.data.length, s.columns.length);
+    }
+    return map;
+  });
 
-  const [grid, setGrid] = useState<GridState>(() => createEmptyGrid(ROWS, COLS));
-  const [active, setActive] = useState<CellPosition>({ row: 0, col: 0 });
+  const sheet = useMemo(
+    () => SHEETS.find((s) => s.id === activeSheetId) ?? SHEETS[0],
+    [activeSheetId]
+  );
+  const expected = sheet.data;
+  const COLUMNS = sheet.columns;
+  const ROWS = sheet.data.length;
+  const COLS = sheet.columns.length;
 
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  const sheetState = sheetStates[activeSheetId];
+  const grid = sheetState.grid;
+  const active = sheetState.active;
+  const startedAt = sheetState.startedAt;
+  const finishedAt = sheetState.finishedAt;
+  const lastRowDurationMs = sheetState.lastRowDurationMs;
+  const fixMode = sheetState.fixMode;
+
+  const updateSheet = useCallback(
+    (id: string, updater: (prev: SheetState) => SheetState) => {
+      setSheetStates((prev) => {
+        const cur = prev[id];
+        if (!cur) return prev;
+        const next = updater(cur);
+        if (next === cur) return prev;
+        return { ...prev, [id]: next };
+      });
+    },
+    []
+  );
+
   const [now, setNow] = useState<number>(() => Date.now());
-
-  const rowStartedAtRef = useRef<number | null>(null);
-  const [lastRowDurationMs, setLastRowDurationMs] = useState<number | null>(null);
-
-  const [fixMode, setFixMode] = useState(false);
-
   const [stats, setStats] = useState(() => loadStats());
   const [isConverterOpen, setConverterOpen] = useState(false);
   const [isAuthOpen, setAuthOpen] = useState(false);
+  const [isHelpOpen, setHelpOpen] = useState(false);
 
   const auth = useAuth();
+  const { isDark, toggle: toggleTheme } = useDarkMode();
+  const isMobile = useIsMobile();
 
-  const completionSavedRef = useRef(false);
+  // 최초 진입 시(localStorage 미설정) 도움말을 1회 자동 노출.
+  // 사용자가 닫으면 플래그가 저장되어 다음 방문부터는 자동으로 뜨지 않는다.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const seen = window.localStorage.getItem(HELP_SEEN_KEY);
+      if (!seen) setHelpOpen(true);
+    } catch {
+      // 접근 실패 시에도 사용자 흐름을 막지 않기 위해 안내만 생략한다.
+    }
+  }, []);
 
+  const handleHelpClose = useCallback(() => {
+    setHelpOpen(false);
+    try {
+      window.localStorage.setItem(HELP_SEEN_KEY, "1");
+    } catch {
+      // 저장 실패는 무시 — 다음 방문에서 한 번 더 보일 뿐 동작은 영향 없음.
+    }
+  }, []);
+
+  // 경과 시간 타이머: 시작된 시점이 있고 아직 완료되지 않은 경우에만 동작.
   useEffect(() => {
     if (startedAt === null || finishedAt !== null) return;
     const id = window.setInterval(() => setNow(Date.now()), 150);
@@ -69,121 +146,153 @@ export default function App() {
     startedAt === null ? 0 : Math.max(0, (finishedAt ?? now) - startedAt);
   const lastRowLabel = lastRowDurationMs === null ? null : formatRowSeconds(lastRowDurationMs);
 
-  const markRowChanged = useCallback(() => {
-    const t = Date.now();
-    if (rowStartedAtRef.current !== null) {
-      setLastRowDurationMs(Math.max(0, t - rowStartedAtRef.current));
-    }
-    rowStartedAtRef.current = t;
-  }, []);
-
   const activateCell = useCallback(
     (pos: CellPosition) => {
-      setActive((prev) => {
-        if (prev.row === pos.row && prev.col === pos.col) return prev;
-        if (prev.row !== pos.row && startedAt !== null) {
-          markRowChanged();
+      updateSheet(activeSheetId, (prev) => {
+        if (prev.active.row === pos.row && prev.active.col === pos.col) return prev;
+        // 행이 바뀌면 직전 행의 입력 시간을 마감해 lastRowDurationMs 에 반영한다.
+        let lastRowDuration = prev.lastRowDurationMs;
+        let rowStartedAt = prev.rowStartedAt;
+        if (prev.active.row !== pos.row && prev.startedAt !== null) {
+          const t = Date.now();
+          if (rowStartedAt !== null) {
+            lastRowDuration = Math.max(0, t - rowStartedAt);
+          }
+          rowStartedAt = t;
         }
-        return pos;
+        return {
+          ...prev,
+          active: pos,
+          lastRowDurationMs: lastRowDuration,
+          rowStartedAt,
+        };
       });
     },
-    [startedAt, markRowChanged]
+    [activeSheetId, updateSheet]
   );
 
   // blur 등으로 호출되는 평가 커밋. 상태 적용만 담당.
   const evaluateCommit = useCallback(
     (pos: CellPosition) => {
-      setGrid((prev) => commitCell(prev, pos, expected[pos.row]?.[pos.col] ?? ""));
+      updateSheet(activeSheetId, (prev) => ({
+        ...prev,
+        grid: commitCell(prev.grid, pos, expected[pos.row]?.[pos.col] ?? ""),
+      }));
     },
-    [expected]
+    [activeSheetId, expected, updateSheet]
   );
 
   const changeCell = useCallback(
     (pos: CellPosition, value: string) => {
-      if (startedAt === null) {
-        const t = Date.now();
-        setStartedAt(t);
-        setNow(t);
-        rowStartedAtRef.current = t;
-      }
-      setGrid((prev) => {
-        const cell = prev[pos.row]?.[pos.col];
+      updateSheet(activeSheetId, (prev) => {
+        const cell = prev.grid[pos.row]?.[pos.col];
         if (!cell) return prev;
         if (cell.value === value) return prev;
-        const nextRow = prev[pos.row].slice();
+
+        // 첫 입력 시점에 startedAt 을 세팅 — 이후 경과시간 타이머가 가동된다.
+        const t = Date.now();
+        const startedAt = prev.startedAt ?? t;
+        const rowStartedAt = prev.rowStartedAt ?? t;
+
+        const nextRow = prev.grid[pos.row].slice();
         nextRow[pos.col] = { ...cell, value, status: "empty" };
-        const nextGrid = prev.slice();
+        const nextGrid = prev.grid.slice();
         nextGrid[pos.row] = nextRow;
-        return nextGrid;
+
+        return {
+          ...prev,
+          grid: nextGrid,
+          startedAt,
+          rowStartedAt,
+        };
       });
+      // 첫 입력 직후 경과시간 표시가 0:00 인 채 멈춰있지 않도록 now 도 동기화.
+      if (startedAt === null) setNow(Date.now());
     },
-    [startedAt]
+    [activeSheetId, startedAt, updateSheet]
   );
 
-  // 메인 이동 핸들러. 커밋 후 grid 를 즉시 계산해 완료/오류 탐색 판단에 사용한다.
+  // 메인 이동 핸들러.
+  // 커밋 후 grid 를 즉시 계산해 완료/오류 탐색 판단에 사용한다.
+  // - "next": Tab 오른쪽 이동, 행 끝이면 다음 행 첫 셀
+  // - "enter": 같은 열의 아래 행, 마지막 행이면 다음 열 첫 행, 마지막 셀이면 A1로 순환
+  //            fixMode 일 때는 다음 오류 셀로 점프 (이 흐름 덕분에 오류만 빠르게 수정 가능)
+  // - "down"/"up": 세로 1칸 이동
   const move = useCallback(
     (direction: MoveDirection) => {
-      const target = expected[active.row]?.[active.col] ?? "";
-      const committedGrid = commitCell(grid, active, target);
-      setGrid(committedGrid);
+      updateSheet(activeSheetId, (prev) => {
+        const a = prev.active;
+        const target = expected[a.row]?.[a.col] ?? "";
+        const committedGrid = commitCell(prev.grid, a, target);
 
-      let next: CellPosition = { row: active.row, col: active.col };
+        let next: CellPosition = { row: a.row, col: a.col };
+        let fixModeNext = prev.fixMode;
 
-      if (direction === "next") {
-        // Tab: 오른쪽 이동. 행 끝이면 다음 행 첫 셀.
-        let c = active.col + 1;
-        let r = active.row;
-        if (c >= COLS) {
-          c = 0;
-          r = Math.min(ROWS - 1, r + 1);
-        }
-        next = { row: r, col: c };
-      } else if (direction === "enter") {
-        if (fixMode) {
-          // 수정 모드: 다음 오류 셀로 이동. 없으면 수정 모드 해제.
-          const nextErr = findNextError(getErrorPositions(committedGrid), active);
-          if (nextErr) {
-            next = nextErr;
-          } else {
-            setFixMode(false);
+        if (direction === "next") {
+          let c = a.col + 1;
+          let r = a.row;
+          if (c >= COLS) {
+            c = 0;
+            r = Math.min(ROWS - 1, r + 1);
           }
-        } else {
-          // Enter: 세로 이동. 같은 열의 아래 행으로.
-          // 마지막 행이면 다음 열의 첫 행, 마지막 셀(C12)이면 A1으로 순환.
-          // A1로 돌아갈 때 모든 셀이 평가된 상태라면 useEffect 가 완료 전이를 1회 트리거한다.
-          if (active.row < ROWS - 1) {
-            next = { row: active.row + 1, col: active.col };
-          } else if (active.col < COLS - 1) {
-            next = { row: 0, col: active.col + 1 };
+          next = { row: r, col: c };
+        } else if (direction === "enter") {
+          if (prev.fixMode) {
+            const nextErr = findNextError(getErrorPositions(committedGrid), a);
+            if (nextErr) {
+              next = nextErr;
+            } else {
+              fixModeNext = false;
+            }
           } else {
-            next = { row: 0, col: 0 };
+            // 마지막 셀(C12)이면 A1으로 순환 — useEffect 가 모든 셀이 평가됐는지 확인 후 1회 완료 전이.
+            if (a.row < ROWS - 1) {
+              next = { row: a.row + 1, col: a.col };
+            } else if (a.col < COLS - 1) {
+              next = { row: 0, col: a.col + 1 };
+            } else {
+              next = { row: 0, col: 0 };
+            }
           }
+        } else if (direction === "down") {
+          next = { row: Math.min(ROWS - 1, a.row + 1), col: a.col };
+        } else if (direction === "up") {
+          next = { row: Math.max(0, a.row - 1), col: a.col };
         }
-      } else if (direction === "down") {
-        next = { row: Math.min(ROWS - 1, active.row + 1), col: active.col };
-      } else if (direction === "up") {
-        next = { row: Math.max(0, active.row - 1), col: active.col };
-      }
-      // NOTE: "prev" (Shift+Tab / ArrowLeft) 역방향 이동은 MVP에서 비활성화되어 있다.
-      // 확장 시 여기에 "prev" 케이스를 추가하고 PracticeGrid의 handleKeyDown 주석을 해제한다.
+        // NOTE: "prev" (Shift+Tab / ArrowLeft) 역방향 이동은 MVP에서 비활성화되어 있다.
 
-      if (next.row !== active.row && startedAt !== null) {
-        markRowChanged();
-      }
-      setActive(next);
+        // 행이 바뀐 경우, 직전 행 입력 시간을 마감하여 lastRowDurationMs 에 반영.
+        let lastRowDuration = prev.lastRowDurationMs;
+        let rowStartedAt = prev.rowStartedAt;
+        if (next.row !== a.row && prev.startedAt !== null) {
+          const t = Date.now();
+          if (rowStartedAt !== null) {
+            lastRowDuration = Math.max(0, t - rowStartedAt);
+          }
+          rowStartedAt = t;
+        }
+
+        return {
+          ...prev,
+          grid: committedGrid,
+          active: next,
+          fixMode: fixModeNext,
+          lastRowDurationMs: lastRowDuration,
+          rowStartedAt,
+        };
+      });
     },
-    [active, expected, grid, fixMode, startedAt, markRowChanged]
+    [activeSheetId, expected, ROWS, COLS, updateSheet]
   );
 
-  // 완료 상태 전이 — 모든 셀이 최소 1회 평가된 시점에 딱 한 번만 발동한다.
+  // 완료 상태 전이 — 모든 셀이 최소 1회 평가된 시점에 시트당 딱 한 번만 발동한다.
+  // completionSavedRef 대신 sheetState.completionSaved 로 가드해 시트 전환에도 안전하게 작동한다.
   useEffect(() => {
-    if (finishedAt !== null || completionSavedRef.current) return;
+    if (finishedAt !== null || sheetState.completionSaved) return;
     if (!isAllAttempted(grid)) return;
     if (startedAt === null) return;
 
     const end = Date.now();
-    setFinishedAt(end);
-    completionSavedRef.current = true;
 
     const record: PracticeRecord = {
       date: new Date(end).toISOString(),
@@ -193,48 +302,94 @@ export default function App() {
       completedRows,
       totalRows: ROWS,
     };
-    const next = appendRecord(record);
-    setStats(next);
-  }, [grid, finishedAt, startedAt, correctCount, attemptedCount, errorPositions, completedRows]);
+    const nextStats = appendRecord(record);
+    setStats(nextStats);
+
+    updateSheet(activeSheetId, (prev) => ({
+      ...prev,
+      finishedAt: end,
+      completionSaved: true,
+    }));
+  }, [
+    grid,
+    finishedAt,
+    startedAt,
+    correctCount,
+    attemptedCount,
+    errorPositions,
+    completedRows,
+    sheetState.completionSaved,
+    activeSheetId,
+    updateSheet,
+    ROWS,
+  ]);
 
   // 모든 오류가 해결되면 수정 모드를 자동 해제한다.
+  // 사용자가 수정 모드 진입 후 빠르게 모든 오류를 고쳤을 때 모드 표시가 잔존하는 것을 막는다.
   useEffect(() => {
     if (fixMode && errorPositions.length === 0) {
-      setFixMode(false);
+      updateSheet(activeSheetId, (prev) => ({ ...prev, fixMode: false }));
     }
-  }, [fixMode, errorPositions]);
+  }, [fixMode, errorPositions, activeSheetId, updateSheet]);
 
   const handleReset = useCallback(() => {
-    setGrid(createEmptyGrid(ROWS, COLS));
-    setActive({ row: 0, col: 0 });
-    setStartedAt(null);
-    setFinishedAt(null);
-    setLastRowDurationMs(null);
-    rowStartedAtRef.current = null;
-    setFixMode(false);
-    completionSavedRef.current = false;
-  }, []);
+    setSheetStates((prev) => {
+      const cur = prev[activeSheetId];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [activeSheetId]: makeInitialSheetState(ROWS, COLS),
+      };
+    });
+  }, [activeSheetId, ROWS, COLS]);
 
   const handleStartFixMode = useCallback(() => {
     if (errorPositions.length === 0) return;
     const first = errorPositions[0];
-    setFixMode(true);
-    if (first.row !== active.row && startedAt !== null) {
-      markRowChanged();
-    }
-    setActive(first);
-  }, [errorPositions, active.row, startedAt, markRowChanged]);
+    updateSheet(activeSheetId, (prev) => {
+      let lastRowDuration = prev.lastRowDurationMs;
+      let rowStartedAt = prev.rowStartedAt;
+      if (first.row !== prev.active.row && prev.startedAt !== null) {
+        const t = Date.now();
+        if (rowStartedAt !== null) {
+          lastRowDuration = Math.max(0, t - rowStartedAt);
+        }
+        rowStartedAt = t;
+      }
+      return {
+        ...prev,
+        fixMode: true,
+        active: first,
+        lastRowDurationMs: lastRowDuration,
+        rowStartedAt,
+      };
+    });
+  }, [errorPositions, activeSheetId, updateSheet]);
 
   // "오류 N건" 클릭 → 현재 활성 셀 다음에 위치한 오류 셀로 순환 이동
   const handleErrorCycle = useCallback(() => {
     const nextErr = findNextError(errorPositions, active);
     if (!nextErr) return;
-    if (nextErr.row !== active.row && startedAt !== null) {
-      markRowChanged();
-    }
-    setActive(nextErr);
-  }, [errorPositions, active, startedAt, markRowChanged]);
+    updateSheet(activeSheetId, (prev) => {
+      let lastRowDuration = prev.lastRowDurationMs;
+      let rowStartedAt = prev.rowStartedAt;
+      if (nextErr.row !== prev.active.row && prev.startedAt !== null) {
+        const t = Date.now();
+        if (rowStartedAt !== null) {
+          lastRowDuration = Math.max(0, t - rowStartedAt);
+        }
+        rowStartedAt = t;
+      }
+      return {
+        ...prev,
+        active: nextErr,
+        lastRowDurationMs: lastRowDuration,
+        rowStartedAt,
+      };
+    });
+  }, [errorPositions, active, activeSheetId, updateSheet]);
 
+  // Ctrl + / 단축키로 변환 모달 토글. 데스크톱 사용자의 빠른 진입 경로.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
@@ -250,22 +405,31 @@ export default function App() {
   const totalTimeSec =
     startedAt !== null && finishedAt !== null ? Math.round((finishedAt - startedAt) / 1000) : 0;
 
-  // 완료 후 잔존/신규 오류가 있으면 "오류 수정 중" 상태로 간주한다.
-  // fixMode 플래그와 무관하게, 사용자가 100% 정확 후 특정 셀을 다시 수정해 틀린 경우에도
-  // 완료 카드가 즉시 "오류 수정 중" 으로 돌아가야 하기 때문이다.
+  // 완료 후 잔존/신규 오류가 있으면 "오류 수정 중" 으로 표시한다.
   const isFixingAfterComplete = finishedAt !== null && errors > 0;
   const completeLabel = isFixingAfterComplete ? "오류 수정 중" : "완료";
-  const headerMode = isFixingAfterComplete || fixMode ? "오류 수정" : "기본 입력";
+
+  // 모바일 "제출" 버튼은 현재 셀에 입력값이 있어야 활성화된다.
+  // 빈 셀에서 누르면 평가가 unset 상태로 남아 사용자에게 의미 있는 피드백이 없기 때문이다.
+  const currentCellValue = grid[active.row]?.[active.col]?.value ?? "";
+  const submitDisabled = currentCellValue.trim().length === 0;
+
+  const sheetTabs = useMemo(
+    () => SHEETS.map((s) => ({ id: s.id, label: s.label })),
+    []
+  );
 
   return (
     <div className={styles.app}>
       <WorkbookHeader
-        mode={headerMode}
         saved
         authConfigured={auth.configured}
         authLoading={auth.loading}
         user={auth.user}
         onAccountClick={() => setAuthOpen(true)}
+        onHelpClick={() => setHelpOpen(true)}
+        isDark={isDark}
+        onToggleTheme={toggleTheme}
       />
       <StatusBar
         cellAddress={cellAddress}
@@ -273,6 +437,8 @@ export default function App() {
         lastRowLabel={lastRowLabel}
         accuracy={accuracy}
         onReset={handleReset}
+        onSubmit={() => move("enter")}
+        submitDisabled={submitDisabled}
       />
       <main className={styles.main}>
         <PracticeGrid
@@ -355,7 +521,7 @@ export default function App() {
         bestAccuracy={stats.bestAccuracy}
         onErrorClick={handleErrorCycle}
       />
-      <SheetTabs />
+      <SheetTabs tabs={sheetTabs} activeId={activeSheetId} onSelect={setActiveSheetId} />
       <div className={styles.hint}>
         <span className={styles.hintItem}>
           <kbd>Tab</kbd> 이동
@@ -370,6 +536,8 @@ export default function App() {
         </span>
       </div>
 
+      {/* 우측 하단 플로팅 — 모바일에서 단축키(Ctrl+/) 를 쓸 수 없는 환경의 보조 진입점.
+          피드백 링크는 SummaryBar 안으로 옮겨 이 영역과의 시각적 충돌을 줄였다. */}
       <button
         type="button"
         className={styles.fab}
@@ -391,6 +559,7 @@ export default function App() {
         onSignUp={auth.signUp}
         onSignOut={auth.signOut}
       />
+      <HelpModal open={isHelpOpen} onClose={handleHelpClose} isMobile={isMobile} />
     </div>
   );
 }

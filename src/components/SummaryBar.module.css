@@ -37,6 +37,7 @@
 .value {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .valueWarn {
@@ -81,11 +82,12 @@
   border-radius: 2px;
 }
 
-/* 피드백 텍스트 링크 */
+/* 피드백 텍스트 링크 — 버튼 아닌 링크 톤을 유지해 요약 영역과 결이 맞도록 한다. */
 .feedbackLink {
   color: var(--text-muted);
   text-decoration: none;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .feedbackLink:hover,

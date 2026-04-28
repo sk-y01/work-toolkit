@@ -6,6 +6,8 @@ type Props = {
   lastRowLabel: string | null;
   accuracy: number;
   onReset?: () => void;
+  onSubmit?: () => void;
+  submitDisabled?: boolean;
 };
 
 export function StatusBar({
@@ -14,6 +16,8 @@ export function StatusBar({
   lastRowLabel,
   accuracy,
   onReset,
+  onSubmit,
+  submitDisabled,
 }: Props) {
   return (
     <div className={styles.status} role="status" aria-live="polite">
@@ -29,12 +33,25 @@ export function StatusBar({
       <Divider />
       <StatusItem label="정확도" value={`${accuracy}%`} warn={accuracy < 90} />
 
-      {onReset && (
+      {(onReset || onSubmit) && (
         <>
           <span className={styles.spacer} />
-          <button type="button" className={styles.resetBtn} onClick={onReset}>
-            초기화
-          </button>
+          {onReset && (
+            <button type="button" className={styles.resetBtn} onClick={onReset}>
+              초기화
+            </button>
+          )}
+          {/* "제출" 버튼은 모바일 전용. 단축키(Enter) 가 곤란한 환경에서 다음 셀로 이동 동작을 노출한다. */}
+          {onSubmit && (
+            <button
+              type="button"
+              className={styles.submitBtn}
+              onClick={onSubmit}
+              disabled={submitDisabled}
+            >
+              제출
+            </button>
+          )}
         </>
       )}
     </div>

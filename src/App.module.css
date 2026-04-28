@@ -11,7 +11,8 @@
   overflow: auto;
 }
 
-/* Hint bar: Tab 이동 | Enter 아래 이동 | Ctrl+/ 문장 변환 */
+/* Hint bar: Tab 이동 | Enter 아래 이동 | Ctrl+/ 문장 변환
+   모바일에서는 단축키가 의미 없으므로 안내 자체를 숨긴다. */
 .hint {
   display: flex;
   align-items: center;
@@ -21,6 +22,12 @@
   font-size: 11px;
   background: var(--bg);
   flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .hint {
+    display: none;
+  }
 }
 
 .hintItem {
@@ -84,8 +91,7 @@
   background: var(--success);
 }
 
-/* 완료 후 오류가 남아있는 상태에서는 "오류 수정 중" 으로 표시하며
-   좌측 강조 색상과 점 인디케이터, 제목 색을 경고 색으로 바꾼다. */
+/* 완료 후 오류가 남아있는 상태에서는 "오류 수정 중" 으로 표시한다. */
 .completeTitleWarn {
   color: var(--error);
 }
@@ -204,9 +210,9 @@
   align-items: center;
   gap: 6px;
   padding: 10px 14px;
-  background: var(--panel, #ffffff);
-  color: var(--text, #111827);
-  border: 1px solid var(--border, #d1d5db);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
@@ -216,7 +222,7 @@
 }
 
 .fab:hover {
-  background: var(--header-bg, #f3f4f6);
+  background: var(--header-bg);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
 }
 
@@ -225,14 +231,14 @@
 }
 
 .fab:focus-visible {
-  outline: 2px solid var(--accent-soft, #93c5fd);
+  outline: 2px solid var(--accent-soft);
   outline-offset: 2px;
 }
 
 .fabIcon {
   font-size: 13px;
   line-height: 1;
-  color: var(--accent, #2563eb);
+  color: var(--accent);
 }
 
 .fabLabel {

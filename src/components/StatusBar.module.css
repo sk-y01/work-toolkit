@@ -27,6 +27,7 @@
 .value {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
+  color: var(--text);
 }
 
 .valueWarn {
@@ -43,7 +44,8 @@
   flex: 1;
 }
 
-.resetBtn {
+.resetBtn,
+.submitBtn {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -54,14 +56,40 @@
   white-space: nowrap;
 }
 
-.resetBtn:hover {
+.resetBtn:hover,
+.submitBtn:hover:not(:disabled) {
   border-color: var(--border-strong);
-  background: #fff;
+  background: var(--panel);
 }
 
-.resetBtn:focus-visible {
+.resetBtn:focus-visible,
+.submitBtn:focus-visible {
   outline: 2px solid var(--accent-soft);
   outline-offset: 1px;
+}
+
+.submitBtn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.submitBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
+.submitBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* 데스크톱에서는 Enter 단축키로 처리하므로 모바일 전용으로만 노출. */
+@media (min-width: 901px) {
+  .submitBtn {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -69,7 +97,6 @@
     padding: 8px 14px;
     gap: 8px;
   }
-  /* 좁은 화면에서는 초기화 버튼이 다음 줄로 자연스럽게 내려가게 한다. */
   .spacer {
     flex: 1 0 auto;
   }

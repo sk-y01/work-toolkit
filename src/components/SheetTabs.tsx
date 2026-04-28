@@ -7,18 +7,12 @@ type Tab = {
 };
 
 type Props = {
-  tabs?: Tab[];
-  activeId?: string;
-  onSelect?: (id: string) => void;
+  tabs: Tab[];
+  activeId: string;
+  onSelect: (id: string) => void;
 };
 
-const DEFAULT_TABS: Tab[] = [{ id: "sheet1", label: "Sheet1" }];
-
-export function SheetTabs({
-  tabs = DEFAULT_TABS,
-  activeId = DEFAULT_TABS[0].id,
-  onSelect,
-}: Props) {
+export function SheetTabs({ tabs, activeId, onSelect }: Props) {
   const [hintVisible, setHintVisible] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
@@ -49,13 +43,14 @@ export function SheetTabs({
             role="tab"
             aria-selected={t.id === activeId}
             className={`${styles.tab} ${t.id === activeId ? styles.tabActive : ""}`}
-            onClick={() => onSelect?.(t.id)}
+            onClick={() => onSelect(t.id)}
             type="button"
           >
             {t.label}
           </button>
         ))}
       </div>
+      {/* "+" 버튼은 항상 마지막 시트의 오른쪽에 위치한다. 추가 기능은 향후 지원 예정이라 안내만 노출. */}
       <div className={styles.addWrap}>
         <button
           className={styles.add}

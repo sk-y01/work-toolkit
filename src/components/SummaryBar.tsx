@@ -55,6 +55,7 @@ export function SummaryBar({
           <span className={styles.value}>{bestAccuracy}%</span>
         </div>
         <span className={styles.divider} aria-hidden="true" />
+        {/* 피드백은 별도 버튼이 아닌 텍스트 링크로 유지 — 변환 FAB 와 시각적으로 충돌하지 않게 한다. */}
         <a
           className={styles.feedbackLink}
           href={feedbackUrl}

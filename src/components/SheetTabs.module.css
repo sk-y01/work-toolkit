@@ -62,8 +62,8 @@
   left: calc(100% + 6px);
   top: 50%;
   transform: translateY(-50%);
-  background: #1f2937;
-  color: #f9fafb;
+  background: var(--text);
+  color: var(--panel);
   font-size: 11px;
   padding: 3px 8px;
   border-radius: 3px;
@@ -83,5 +83,5 @@
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-right: 4px solid #1f2937;
+  border-right: 4px solid var(--text);
 }

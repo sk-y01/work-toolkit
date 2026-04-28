@@ -29,6 +29,20 @@ import { appendRecord, loadStats } from "./utils/storage";
 import styles from "./App.module.css";
 
 const HELP_SEEN_KEY = "work_toolkit.help_seen.v1";
+const ACTIVE_SHEET_KEY = "work_toolkit_active_sheet";
+
+// 새로고침 후에도 사용자가 보고 있던 시트를 유지하기 위해 localStorage 에서 초기 시트 id 를 읽는다.
+// 저장된 값이 없거나 SHEETS 정의에 없는 무효한 id 면 "sheet1" 으로 폴백한다.
+function readInitialSheetId(): string {
+  if (typeof window === "undefined") return SHEETS[0].id;
+  try {
+    const saved = window.localStorage.getItem(ACTIVE_SHEET_KEY);
+    if (saved && SHEETS.some((s) => s.id === saved)) return saved;
+  } catch {
+    // 접근 실패 시에는 기본 시트로 폴백 — 사용자 흐름을 막지 않는다.
+  }
+  return SHEETS[0].id;
+}
 
 // 시트별로 독립적인 입력/통계 흐름을 유지하기 위한 상태 묶음.
 // 사용자가 탭을 전환하면 현재 시트의 진행도가 그대로 보존되어 다른 시트로 옮겨가도 잃지 않는다.
@@ -57,7 +71,17 @@ function makeInitialSheetState(rows: number, cols: number): SheetState {
 }
 
 export default function App() {
-  const [activeSheetId, setActiveSheetId] = useState<string>(SHEETS[0].id);
+  const [activeSheetId, setActiveSheetId] = useState<string>(readInitialSheetId);
+
+  // 시트 변경 시 즉시 localStorage 에 반영. useEffect 로 처리해 동기화 누락이 없게 한다.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ACTIVE_SHEET_KEY, activeSheetId);
+    } catch {
+      // 저장 실패는 무시 — 다음 새로고침에 기본 시트로 돌아갈 뿐 동작 자체에는 영향 없음.
+    }
+  }, [activeSheetId]);
+
   const [sheetStates, setSheetStates] = useState<Record<string, SheetState>>(() => {
     const map: Record<string, SheetState> = {};
     for (const s of SHEETS) {
